@@ -123,7 +123,6 @@ void drv_cmd_send_status(const char *status)
 
 void drv_cmd_send_position(const char *axis, int32_t pos)
 {
-    char buf[32];
     bsp_uart_send_string(axis);
     bsp_uart_send_string(" POS: ");
     
