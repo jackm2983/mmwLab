@@ -24,16 +24,6 @@ File name convention:
 -cfg is config
 */
 
-/*  
-Start Implementation Plan
-Fill cfg files – Define pin assignments, system constants
-Implement bsp_uart – UART RX/TX with buffering (foundation for debugging)
-Implement bsp_gpio – Pin init (enable, limit switches)
-Implement app_state – Basic state machine skeleton
-Integrate main loop – Enable the loop you commented out
-Add each module – Build upward (mot_*, drv_*, app_mode_*)
-*/
-
 #include "main.h"
 #include "app_state.h"
 

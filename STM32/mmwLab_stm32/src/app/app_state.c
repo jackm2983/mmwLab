@@ -170,25 +170,3 @@ uint8_t app_state_is_running(void)
     return (sys_state == SYS_RUN);
 }
 
-// calibrate, capture (characterize antenna with just one adc), jog, decode (both adcs for I/Q)
-
-// global state machine
-// continuously polled in main(1)
-
-
-/*
-INIT:
-verify UART is alive
-verify limit switch inputs are readable
-verify ADC can start
-verify both drivers can be enabled
-
-go into IDLE if everything worked and send READY over UART
-*/
-
-/*
-app_update():
-check current mode/state
-check flags/events set by UART, ADC, timers, switches
-decide next action or next state
-*/

@@ -141,7 +141,3 @@ void drv_cmd_send_position(const char *axis, int32_t pos)
     bsp_uart_send_char('0' + (pos % 10));
     bsp_uart_send_string("\r\n");
 }
-
-  // commands for setting the start and stop position in cal
-
-  
