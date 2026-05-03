@@ -77,7 +77,7 @@ Command_t drv_cmd_parse_char(uint8_t c)
         case 'p':
             cmd = CMD_MODE_CAP;
             break;
-        case 'd':
+        case 'e':
             cmd = CMD_MODE_DEC;
             break;
         default:

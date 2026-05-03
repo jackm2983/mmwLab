@@ -9,6 +9,10 @@
 #include "main.h"
 #include "cfg_sys.h"
 #include "stm32l4xx_hal.h"
+#include "bsp_uart.h"
+
+/* Forward declaration */
+static void bsp_uart_tx_flush(void);
 
 /* ============================================================================
  * UART Handle & Buffers
@@ -93,7 +97,6 @@ static void bsp_uart_tx_flush(void)
 {
     if (tx_head != tx_tail)
     {
-        uint16_t tx_count = (tx_head - tx_tail + UART_TX_BUFFER_SIZE) % UART_TX_BUFFER_SIZE;
         HAL_UART_Transmit_IT(&huart, &uart_tx_buffer[tx_tail], 1);
     }
 }

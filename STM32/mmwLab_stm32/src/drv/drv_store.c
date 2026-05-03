@@ -8,6 +8,9 @@
 #include "main.h"
 #include "bsp_flash.h"
 
+/* Forward declaration */
+static uint8_t drv_store_load(void);
+
 /* ============================================================================
  * Calibration Data Structure
  * ============================================================================ */

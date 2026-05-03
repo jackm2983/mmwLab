@@ -85,52 +85,5 @@ void app_mode_cap_reset(void)
     cap_state = CAP_INIT;
     cap_step_count = 0;
 }
-        process_runtime_cmd();
-    }
-
-    switch (cap_state) {
-        case CAP_MOVE:
-            if (!move_started) {
-                motion_start_target(&scan_target);
-                move_started = 1;
-            }
-            if (motion_done()) {
-                move_started = 0;
-                cap_state = CAP_SETTLE;
-            }
-            break;
-
-        case CAP_SETTLE:
-            if (settle_elapsed()) {
-                cap_state = CAP_SAMPLE;
-            }
-            break;
-
-        // Captures only one analog signal. Either I or Q.
-        case CAP_SAMPLE:
-            if (!adc_started) {
-                adc_start_dma();
-                adc_started = 1;
-            }
-            if (adc_done()) {
-                adc_started = 0;
-                cap_state = CAP_SEND;
-            }
-            break;
-
-        // Signal strength vs angle that it was captured. 
-        case CAP_SEND:
-            uart_queue_capture_result();
-            if (stop_requested) {
-                mode_done = 1;
-            } else {
-                load_next_scan_point();
-                cap_state = CAP_MOVE;
-            }
-            break;
-    }
-}
-
-*/
 
 
