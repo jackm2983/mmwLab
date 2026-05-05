@@ -179,3 +179,12 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart_)
     }
 }
 
+/* ============================================================================
+ * LPUART1 Interrupt Vector
+ * ============================================================================ */
+
+void LPUART1_IRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart);
+}
+

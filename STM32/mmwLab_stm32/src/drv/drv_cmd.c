@@ -41,7 +41,7 @@ static Command_t last_command = CMD_NONE;
 
 void drv_cmd_init(void)
 {
-    bsp_uart_init();
+    /* UART is already initialized in app_state_init, skip duplicate init */
 }
 
 Command_t drv_cmd_parse_char(uint8_t c)

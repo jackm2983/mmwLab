@@ -7,6 +7,7 @@
 
 #include "main.h"
 #include "cfg_pins.h"
+#include "bsp_gpio.h"
 #include "stm32l4xx_hal.h"
 
 /* ============================================================================
@@ -92,7 +93,9 @@ void bsp_gpio_init(void)
 void bsp_gpio_motor1_pulse(void)
 {
     HAL_GPIO_WritePin(MOT1_PUL_PORT, MOT1_PUL_PIN, GPIO_PIN_SET);
-    HAL_Delay(1);
+    /* DM566 requires 2.5 us minimum; use a short busy loop instead of HAL_Delay */
+    /* At 80 MHz SYSCLK, 20 NOPs ≈ 2.5 us */
+    for (volatile int i = 0; i < 20; i++) __NOP();
     HAL_GPIO_WritePin(MOT1_PUL_PORT, MOT1_PUL_PIN, GPIO_PIN_RESET);
 }
 
@@ -109,7 +112,8 @@ void bsp_gpio_motor1_enable(GPIO_PinState state)
 void bsp_gpio_motor2_pulse(void)
 {
     HAL_GPIO_WritePin(MOT2_PUL_PORT, MOT2_PUL_PIN, GPIO_PIN_SET);
-    HAL_Delay(1);
+    /* DM566 requires 2.5 us minimum; use a short busy loop instead of HAL_Delay */
+    for (volatile int i = 0; i < 20; i++) __NOP();
     HAL_GPIO_WritePin(MOT2_PUL_PORT, MOT2_PUL_PIN, GPIO_PIN_RESET);
 }
 

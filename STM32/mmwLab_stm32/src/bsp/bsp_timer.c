@@ -8,6 +8,7 @@
 #include "main.h"
 #include "cfg_sys.h"
 #include "cfg_pins.h"
+#include "bsp_gpio.h"
 #include "stm32l4xx_hal.h"
 
 /* ============================================================================
@@ -225,5 +226,19 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
             bsp_timer_mot2_stop();
         }
     }
+}
+
+/* ============================================================================
+ * Timer Interrupt Vectors
+ * ============================================================================ */
+
+void TIM2_IRQHandler(void)
+{
+    HAL_TIM_IRQHandler(&htim2);
+}
+
+void TIM3_IRQHandler(void)
+{
+    HAL_TIM_IRQHandler(&htim3);
 }
 
