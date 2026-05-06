@@ -50,10 +50,9 @@ static AppState_t app_state = APP_NONE;
 void app_state_init(void)
 {
     /* Initialize all subsystems */
-    bsp_gpio_init();
-    bsp_uart_init();
-    bsp_adc_init();
-    bsp_timer_init();
+    /* Peripherals (ADC, UART, Timers) are initialized by main.c (CubeMX) */
+    bsp_gpio_init();  /* Initialize GPIO motor states after CubeMX pin config */
+    bsp_uart_start(); /* Enable UART RX interrupts */
     
     mot_axis_init();
     mot_stepper_init();

@@ -15,10 +15,10 @@
 static void bsp_uart_tx_flush(void);
 
 /* ============================================================================
- * UART Handle & Buffers
+ * UART Handle & Buffers (hlpuart1 initialized by MX_LPUART1_UART_Init in main.c)
  * ============================================================================ */
 
-static UART_HandleTypeDef huart;
+extern UART_HandleTypeDef hlpuart1;
 
 /* Circular buffers for RX and TX */
 static uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
@@ -29,32 +29,17 @@ static volatile uint16_t tx_head = 0;
 static volatile uint16_t tx_tail = 0;
 
 /* ============================================================================
- * UART Initialization
+ * Startup (enables RX interrupts)
  * ============================================================================ */
 
-void bsp_uart_init(void)
+void bsp_uart_start(void)
 {
-    /* Configure LPUART1 for 9600 baud, 8-N-1 */
-    huart.Instance = LPUART1;
-    huart.Init.BaudRate = BAUDRATE;
-    huart.Init.WordLength = UART_WORDLENGTH_8B;
-    huart.Init.StopBits = UART_STOPBITS_1;
-    huart.Init.Parity = UART_PARITY_NONE;
-    huart.Init.Mode = UART_MODE_TX_RX;
-    huart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-
-    if (HAL_UART_Init(&huart) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    /* Enable RX interrupts */
-    HAL_UART_Receive_IT(&huart, (uint8_t *)uart_rx_buffer, 1);
+    /* Enable RX interrupts after UART initialized by main.c */
+    HAL_UART_Receive_IT(&hlpuart1, (uint8_t *)uart_rx_buffer, 1);
 }
 
 /* ============================================================================
- * TX Functions
+ * TX Functions (UART initialized by MX_LPUART1_UART_Init in main.c)
  * ============================================================================ */
 
 void bsp_uart_send_char(uint8_t c)
@@ -71,7 +56,7 @@ void bsp_uart_send_char(uint8_t c)
     tx_head = next_head;
 
     /* Start transmission if not already running */
-    if (huart.gState == HAL_UART_STATE_READY)
+    if (hlpuart1.gState == HAL_UART_STATE_READY)
     {
         bsp_uart_tx_flush();
     }
@@ -97,7 +82,7 @@ static void bsp_uart_tx_flush(void)
 {
     if (tx_head != tx_tail)
     {
-        HAL_UART_Transmit_IT(&huart, &uart_tx_buffer[tx_tail], 1);
+        HAL_UART_Transmit_IT(&hlpuart1, &uart_tx_buffer[tx_tail], 1);
     }
 }
 
@@ -185,6 +170,6 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart_)
 
 void LPUART1_IRQHandler(void)
 {
-    HAL_UART_IRQHandler(&huart);
+    HAL_UART_IRQHandler(&hlpuart1);
 }
 

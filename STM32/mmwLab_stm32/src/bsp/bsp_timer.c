@@ -12,11 +12,11 @@
 #include "stm32l4xx_hal.h"
 
 /* ============================================================================
- * Timer Handles for Stepper Control
+ * Timer Handles for Stepper Control (from main.c via CubeMX)
  * ============================================================================ */
 
-static TIM_HandleTypeDef htim2;  /* Motor 1 stepper timer */
-static TIM_HandleTypeDef htim3;  /* Motor 2 stepper timer */
+extern TIM_HandleTypeDef htim2;  /* Motor 1 stepper timer */
+extern TIM_HandleTypeDef htim3;  /* Motor 2 stepper timer */
 
 static uint32_t mot1_step_count = 0;
 static uint32_t mot2_step_count = 0;
@@ -24,95 +24,7 @@ static uint32_t mot1_target_steps = 0;
 static uint32_t mot2_target_steps = 0;
 
 /* ============================================================================
- * Timer Initialization
- * ============================================================================ */
-
-void bsp_timer_init(void)
-{
-    TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-    TIM_MasterConfigTypeDef sMasterConfig = {0};
-    TIM_OC_InitTypeDef sConfigOC = {0};
-
-    /* TIM2 for Motor 1 */
-    htim2.Instance = TIM2;
-    htim2.Init.Prescaler = 79;                    /* 80MHz / 80 = 1MHz timer clock */
-    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim2.Init.Period = 1000 - 1;                /* Default 1kHz (1ms pulses) */
-    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-
-    if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-    if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-    if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-    sConfigOC.Pulse = 500;                       /* 50% duty cycle */
-    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-
-    if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    /* TIM3 for Motor 2 (same configuration) */
-    htim3.Instance = TIM3;
-    htim3.Init.Prescaler = 79;
-    htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim3.Init.Period = 1000 - 1;
-    htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-
-    if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-    if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-    if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
-
-    if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-    {
-        Error_Handler();
-    }
-}
-
-/* ============================================================================
- * Motor 1 Step Control
+ * Motor 1 Step Control (timers initialized by MX_TIM2_Init/MX_TIM3_Init in main.c)
  * ============================================================================ */
 
 void bsp_timer_mot1_set_frequency(uint32_t freq_hz)

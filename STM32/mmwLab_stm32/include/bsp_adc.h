@@ -18,10 +18,7 @@ extern "C" {
  * Public Function Declarations
  * ============================================================================ */
 
-/* Initialization */
-void bsp_adc_init(void);
-
-/* Continuous conversion (with DMA) */
+/* Continuous conversion (with DMA - ADC initialized by main.c) */
 void bsp_adc_start_continuous(void);
 void bsp_adc_stop(void);
 
