@@ -18,10 +18,10 @@ extern "C" {
  * Public Function Declarations
  * ============================================================================ */
 
-/* Startup (enables RX interrupts after UART initialized by main.c) */
-void bsp_uart_start(void);
+/* Initialization */
+void bsp_uart_init(void);
 
-/* TX Functions (LPUART1 initialized by main.c) */
+/* TX Functions */
 void bsp_uart_send_char(uint8_t c);
 void bsp_uart_send_string(const char *str);
 void bsp_uart_send_buffer(const uint8_t *data, uint16_t length);
