@@ -29,6 +29,12 @@ static int32_t cap_max_steps = 72;
 #define CAP_ROTATION_SPEED  100
 
 void app_mode_cap_update(void)
+
+
+// this needs to be changed so that it rotates both motor1 and motor2. first does a complete sweep of motor1. then tilts motor 2 5'(degrees)
+// , the motor 1 again, then motor
+// 2 5' then motor1, and so on until motor 2 has completed a full sweep at 90' from its start angle.
+
 {
     switch (cap_state)
     {

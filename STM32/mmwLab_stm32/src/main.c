@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "app_state.h"
+#include "bsp_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -94,6 +96,7 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -104,7 +107,12 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
   app_state_init();
+
+  bsp_uart_send_string("\033[2J\033[H");
+  bsp_uart_send_string("==BEGIN MOTOR CONTROL==\r\n");
+  bsp_uart_send_string("Commands: j:jog (WASD), c:calibrate (WASD, m:mark), p:capture/characterize, e:decode IQ, x:cancel\r\n");
 
   /* USER CODE END 2 */
 
@@ -112,9 +120,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  app_state_update();
     /* USER CODE END WHILE */
-
-    app_state_update();
 
     /* USER CODE BEGIN 3 */
   }
@@ -409,15 +416,66 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  HAL_PWREx_EnableVddIO2();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2|GPIO_PIN_6, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PF2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PF3 PF5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB2 PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PG0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PD0 PD1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

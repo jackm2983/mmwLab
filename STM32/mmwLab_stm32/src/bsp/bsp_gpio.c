@@ -11,12 +11,20 @@
 #include "stm32l4xx_hal.h"
 
 /* ============================================================================
- * GPIO Initialization (clocks enabled by MX_GPIO_Init, pins configured here)
+ * GPIO Initialization
  * ============================================================================ */
 
 void bsp_gpio_init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    /* Enable GPIO port clocks */
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+    __HAL_RCC_GPIOF_CLK_ENABLE();
+    __HAL_RCC_GPIOG_CLK_ENABLE();
 
     /* ====== ADC Input Pins (Analog) ====== */
     GPIO_InitStruct.Pin = ADC_I_PIN;

@@ -15,7 +15,7 @@
 static void bsp_uart_tx_flush(void);
 
 /* ============================================================================
- * UART Handle & Buffers (hlpuart1 initialized by MX_LPUART1_UART_Init in main.c)
+ * UART Handle & Buffers
  * ============================================================================ */
 
 extern UART_HandleTypeDef hlpuart1;
@@ -29,17 +29,16 @@ static volatile uint16_t tx_head = 0;
 static volatile uint16_t tx_tail = 0;
 
 /* ============================================================================
- * Startup (enables RX interrupts)
+ * UART Initialization
  * ============================================================================ */
 
-void bsp_uart_start(void)
+void bsp_uart_init(void)
 {
-    /* Enable RX interrupts after UART initialized by main.c */
-    HAL_UART_Receive_IT(&hlpuart1, (uint8_t *)uart_rx_buffer, 1);
+	HAL_UART_Receive_IT(&hlpuart1, (uint8_t *)&uart_rx_buffer[rx_head], 1);
 }
 
 /* ============================================================================
- * TX Functions (UART initialized by MX_LPUART1_UART_Init in main.c)
+ * TX Functions
  * ============================================================================ */
 
 void bsp_uart_send_char(uint8_t c)
@@ -164,12 +163,4 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart_)
     }
 }
 
-/* ============================================================================
- * LPUART1 Interrupt Vector
- * ============================================================================ */
-
-void LPUART1_IRQHandler(void)
-{
-    HAL_UART_IRQHandler(&hlpuart1);
-}
 

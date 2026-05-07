@@ -18,7 +18,10 @@ extern "C" {
  * Public Function Declarations
  * ============================================================================ */
 
-/* Motor 1 Control (TIM2/TIM3 initialized by main.c) */
+/* Initialization */
+void bsp_timer_init(void);
+
+/* Motor 1 Control */
 void bsp_timer_mot1_set_frequency(uint32_t freq_hz);
 void bsp_timer_mot1_start(uint32_t num_steps);
 void bsp_timer_mot1_stop(void);
