@@ -90,14 +90,18 @@ Command_t drv_cmd_parse_char(uint8_t c)
 
 Command_t drv_cmd_get_command(void)
 {
-    if (bsp_uart_data_available())
-    {
-        uint8_t c = bsp_uart_read_char();
-        last_command = drv_cmd_parse_char(c);
-        return last_command;
+    if (!bsp_uart_data_available()) {
+        return CMD_NONE;
     }
 
-    return CMD_NONE;
+    // drain everything, keep only the most recent byte
+    uint8_t c = 0;
+    while (bsp_uart_data_available()) {
+        c = bsp_uart_read_char();
+    }
+
+    last_command = drv_cmd_parse_char(c);
+    return last_command;
 }
 
 Command_t drv_cmd_get_last_command(void)

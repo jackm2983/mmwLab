@@ -1,80 +1,208 @@
 /**
   ******************************************************************************
   * @file           : app_mode_jog.c
-  * @brief          : Jog mode (manual motor control via arrow keys)
+  * @brief          : Jog mode (manual motor control via WASD keys)
   ******************************************************************************
 */
 
 #include "main.h"
 #include "cfg_sys.h"
 #include "drv_cmd.h"
+#include "bsp_uart.h"
 #include "mot_ctrl.h"
 #include "mot_axis.h"
+#include "bsp_timer.h"
 
-/* ============================================================================
- * Jog Mode - Direct User Control
- * ============================================================================ */
+// debug levels: 0 = silent, 1 = state changes only, 2 = verbose every loop
+#define JOG_DEBUG       1
 
-#define JOG_SPEED 100  /* Hz (steps per second) */
+#define JOG_SPEED       4000    // hz
+#define JOG_TIMEOUT_MS  30     // stop if no keypress in this window
 
-static uint8_t axis1_jogging = 0;
-static uint8_t axis2_jogging = 0;
+// how often to print periodic motor status while jogging (ms)
+#define JOG_STATUS_MS   500
 
-void app_mode_jog_update(void)
+typedef enum {
+    JOG_DIR_NONE,
+    JOG_DIR_AX1_FWD,
+    JOG_DIR_AX1_REV,
+    JOG_DIR_AX2_FWD,
+    JOG_DIR_AX2_REV
+} JogDir_t;
+
+static JogDir_t current_dir = JOG_DIR_NONE;
+static uint32_t last_key_tick = 0;
+static uint32_t last_status_tick = 0;
+static uint32_t jog_start_tick = 0;
+
+#if JOG_DEBUG
+static const char* dir_str(JogDir_t d)
 {
-    Command_t cmd = drv_cmd_get_last_command();
+    switch (d) {
+        case JOG_DIR_NONE:    return "NONE";
+        case JOG_DIR_AX1_FWD: return "AX1_FWD";
+        case JOG_DIR_AX1_REV: return "AX1_REV";
+        case JOG_DIR_AX2_FWD: return "AX2_FWD";
+        case JOG_DIR_AX2_REV: return "AX2_REV";
+        default: return "?";
+    }
+}
 
-    switch (cmd)
-    {
-        case CMD_JOG_UP:
-            /* Axis 2 forward (if not at limit) */
-            if (!mot_axis2_limit_triggered())
-            {
-                if (!axis2_jogging)
-                {
-                    mot_ctrl_move_axis2_rel(1, JOG_SPEED);
-                    axis2_jogging = 1;
-                }
+static void dbg_u32(const char *label, uint32_t v)
+{
+    bsp_uart_send_string(label);
+    char buf[12];
+    int i = 0;
+    if (v == 0) { buf[i++] = '0'; }
+    else {
+        char tmp[12];
+        int j = 0;
+        while (v > 0) { tmp[j++] = '0' + (v % 10); v /= 10; }
+        while (j > 0) { buf[i++] = tmp[--j]; }
+    }
+    buf[i] = 0;
+    bsp_uart_send_string(buf);
+}
+#endif
+
+static void jog_start(JogDir_t dir)
+{
+#if JOG_DEBUG
+    bsp_uart_send_string("DBG jog: start req=");
+    bsp_uart_send_string(dir_str(dir));
+    bsp_uart_send_string(" cur=");
+    bsp_uart_send_string(dir_str(current_dir));
+    bsp_uart_send_string("\r\n");
+#endif
+
+    if (dir == current_dir) {
+        // already going this way, deadline already refreshed in caller
+#if JOG_DEBUG
+        bsp_uart_send_string("DBG jog: same dir, continuing\r\n");
+#endif
+        return;
+    }
+
+    // direction changed (or starting from idle), stop first
+    mot_ctrl_stop_all();
+    uint8_t rc = 0xFF;
+
+    switch (dir) {
+        case JOG_DIR_AX1_FWD:
+            if (mot_axis1_limit_triggered()) {
+                drv_cmd_send_status("axis 1 forward limit");
+                return;
             }
+            rc = mot_ctrl_jog_axis1(1, JOG_SPEED);
+            drv_cmd_send_status("axis 1 fwd");
             break;
-
-        case CMD_JOG_DOWN:
-            /* Axis 2 backward (if not at limit) */
-            if (!axis2_jogging)
-            {
-                mot_ctrl_move_axis2_rel(-1, JOG_SPEED);
-                axis2_jogging = 1;
+        case JOG_DIR_AX1_REV:
+            rc = mot_ctrl_jog_axis1(0, JOG_SPEED);
+            drv_cmd_send_status("axis 1 rev");
+            break;
+        case JOG_DIR_AX2_FWD:
+            if (mot_axis2_limit_triggered()) {
+                drv_cmd_send_status("axis 2 forward limit");
+                return;
             }
+            rc = mot_ctrl_jog_axis2(1, JOG_SPEED);
+            drv_cmd_send_status("axis 2 fwd");
             break;
-
-        case CMD_JOG_LEFT:
-            /* Axis 1 backward (if not at limit) */
-            if (!axis1_jogging)
-            {
-                mot_ctrl_move_axis1_rel(-1, JOG_SPEED);
-                axis1_jogging = 1;
-            }
+        case JOG_DIR_AX2_REV:
+            rc = mot_ctrl_jog_axis2(0, JOG_SPEED);
+            drv_cmd_send_status("axis 2 rev");
             break;
-
-        case CMD_JOG_RIGHT:
-            /* Axis 1 forward (if not at limit) */
-            if (!mot_axis1_limit_triggered())
-            {
-                if (!axis1_jogging)
-                {
-                    mot_ctrl_move_axis1_rel(1, JOG_SPEED);
-                    axis1_jogging = 1;
-                }
-            }
-            break;
-
         default:
             break;
     }
 
-    /* Update motor state */
-    if (!mot_axis1_is_moving())
-        axis1_jogging = 0;
-    if (!mot_axis2_is_moving())
-        axis2_jogging = 0;
+#if JOG_DEBUG
+    bsp_uart_send_string("DBG jog: mot_ctrl rc=");
+    dbg_u32("", rc);
+    bsp_uart_send_string("\r\n");
+#endif
+
+    current_dir = dir;
+    jog_start_tick = HAL_GetTick();
+    last_status_tick = jog_start_tick;
+}
+
+static void jog_stop(void)
+{
+    if (current_dir == JOG_DIR_NONE) return;
+
+#if JOG_DEBUG
+    uint32_t elapsed = HAL_GetTick() - jog_start_tick;
+    bsp_uart_send_string("DBG jog: stop after ");
+    dbg_u32("", elapsed);
+    bsp_uart_send_string(" ms\r\n");
+#endif
+
+    mot_ctrl_stop_all();
+    current_dir = JOG_DIR_NONE;
+    drv_cmd_send_status("jog stopped");
+}
+
+void app_mode_jog_update(void)
+{
+    Command_t cmd = drv_cmd_get_last_command();
+    uint32_t now = HAL_GetTick();
+
+#if JOG_DEBUG >= 2
+    // verbose: print every loop. only enable for deep debugging.
+    if (cmd != CMD_NONE || current_dir != JOG_DIR_NONE) {
+        bsp_uart_send_string("DBG jog loop: cmd=");
+        dbg_u32("", (uint32_t)cmd);
+        bsp_uart_send_string(" dir=");
+        bsp_uart_send_string(dir_str(current_dir));
+        bsp_uart_send_string(" gap=");
+        dbg_u32("", now - last_key_tick);
+        bsp_uart_send_string("\r\n");
+    }
+#endif
+
+    switch (cmd) {
+        case CMD_JOG_UP:    last_key_tick = now; jog_start(JOG_DIR_AX2_FWD); break;
+        case CMD_JOG_DOWN:  last_key_tick = now; jog_start(JOG_DIR_AX2_REV); break;
+        case CMD_JOG_LEFT:  last_key_tick = now; jog_start(JOG_DIR_AX1_REV); break;
+        case CMD_JOG_RIGHT: last_key_tick = now; jog_start(JOG_DIR_AX1_FWD); break;
+        default: break;
+    }
+
+    // periodic status while jogging
+#if JOG_DEBUG
+    if (current_dir != JOG_DIR_NONE && (now - last_status_tick) > JOG_STATUS_MS) {
+        last_status_tick = now;
+        bsp_uart_send_string("DBG jog: alive dir=");
+        bsp_uart_send_string(dir_str(current_dir));
+        bsp_uart_send_string(" ax1_pos=");
+        int32_t p = mot_axis1_get_position();
+        if (p < 0) { bsp_uart_send_char('-'); p = -p; }
+        dbg_u32("", (uint32_t)p);
+        bsp_uart_send_string(" ax1_moving=");
+        dbg_u32("", mot_axis1_is_moving());
+        bsp_uart_send_string(" ax2_pos=");
+        p = mot_axis2_get_position();
+        if (p < 0) { bsp_uart_send_char('-'); p = -p; }
+        dbg_u32("", (uint32_t)p);
+        bsp_uart_send_string(" ax2_moving=");
+        dbg_u32("", mot_axis2_is_moving());
+        bsp_uart_send_string(" key_gap=");
+        dbg_u32("", now - last_key_tick);
+        bsp_uart_send_string("\r\n");
+    }
+#endif
+
+    // stop if no key seen recently
+    if (current_dir != JOG_DIR_NONE && (now - last_key_tick) > JOG_TIMEOUT_MS) {
+        jog_stop();
+    }
+}
+
+void app_mode_jog_reset(void)
+{
+    jog_stop();
+    last_key_tick = 0;
+    last_status_tick = 0;
+    jog_start_tick = 0;
 }

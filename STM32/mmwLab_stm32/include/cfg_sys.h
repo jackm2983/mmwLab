@@ -30,7 +30,7 @@ extern "C" {
 #define AZIMUTH_INCREMENT   5               // 5 degree steps
 #define ROTATE_DELAY        100             // Rotation step delay (ms)
 #define MOTOR_ACCEL_TIME    500             // Acceleration ramp time (ms)
-#define MOTOR_MAX_SPEED     200             // Max stepper frequency (steps/sec)
+#define MOTOR_MAX_SPEED     5000             // Max stepper frequency (steps/sec)
 
 /* ============================================================================
  * State Machine Timeouts

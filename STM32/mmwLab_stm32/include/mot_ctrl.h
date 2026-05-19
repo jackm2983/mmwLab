@@ -38,6 +38,9 @@ void mot_ctrl_stop_all(void);
 /* Update (call from main loop) */
 void mot_ctrl_update(void);
 
+uint8_t mot_ctrl_jog_axis1(uint8_t direction, uint32_t freq_hz);
+uint8_t mot_ctrl_jog_axis2(uint8_t direction, uint32_t freq_hz);
+
 #ifdef __cplusplus
 }
 #endif
