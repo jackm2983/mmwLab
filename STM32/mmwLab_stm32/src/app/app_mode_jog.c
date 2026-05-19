@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file           : app_mode_jog.c
-  * @brief          : Jog mode (manual motor control via WASD keys)
+  * @brief          : Jog mode (manual motor control via WASD keys). 
   ******************************************************************************
 */
 
@@ -14,7 +14,7 @@
 #include "bsp_timer.h"
 
 // debug levels: 0 = silent, 1 = state changes only, 2 = verbose every loop
-#define JOG_DEBUG       1
+#define JOG_DEBUG       0
 
 #define JOG_SPEED       4000    // hz
 #define JOG_TIMEOUT_MS  30     // stop if no keypress in this window

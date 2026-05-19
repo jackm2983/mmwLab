@@ -61,7 +61,7 @@ void bsp_gpio_init(void)
 
     /* ====== Limit Switch Pins (Input with Pull-up) ====== */
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
     GPIO_InitStruct.Pin = LIMIT1_PIN;
@@ -145,12 +145,12 @@ void bsp_gpio_motor_enable_all(void)
 
 uint8_t bsp_gpio_limit1_read(void)
 {
-    return HAL_GPIO_ReadPin(LIMIT1_PORT, LIMIT1_PIN) == GPIO_PIN_RESET;
+    return HAL_GPIO_ReadPin(LIMIT1_PORT, LIMIT1_PIN) == GPIO_PIN_SET;
 }
 
 uint8_t bsp_gpio_limit2_read(void)
 {
-    return HAL_GPIO_ReadPin(LIMIT2_PORT, LIMIT2_PIN) == GPIO_PIN_RESET;
+    return HAL_GPIO_ReadPin(LIMIT2_PORT, LIMIT2_PIN) == GPIO_PIN_SET;
 }
 
 uint8_t bsp_gpio_limit_triggered(void)

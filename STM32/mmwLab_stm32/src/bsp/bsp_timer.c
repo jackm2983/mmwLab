@@ -9,19 +9,49 @@
 #include "cfg_sys.h"
 #include "cfg_pins.h"
 #include "bsp_gpio.h"
+#include "bsp_uart.h"
 #include "stm32l4xx_hal.h"
+
+// 0 = silent, 1 = move start/stop, 2 = every ISR pulse (will flood UART)
+#define BSP_TIMER_DEBUG 1
 
 /* ============================================================================
  * Timer Handles for Stepper Control
  * ============================================================================ */
 
-extern TIM_HandleTypeDef htim2;  /* Motor 1 stepper timer */
-extern TIM_HandleTypeDef htim3;  /* Motor 2 stepper timer */
+extern TIM_HandleTypeDef htim2;  // motor 1 stepper timer
+extern TIM_HandleTypeDef htim3;  // motor 2 stepper timer
 
-static uint32_t mot1_step_count = 0;
-static uint32_t mot2_step_count = 0;
-static uint32_t mot1_target_steps = 0;
-static uint32_t mot2_target_steps = 0;
+static volatile uint32_t mot1_step_count = 0;
+static volatile uint32_t mot2_step_count = 0;
+static volatile uint32_t mot1_target_steps = 0;
+static volatile uint32_t mot2_target_steps = 0;
+
+// direction: +1 forward, -1 reverse
+static volatile int8_t mot1_step_dir = 1;
+static volatile int8_t mot2_step_dir = 1;
+
+// last consumed count, used by consume_delta
+static uint32_t mot1_last_consumed = 0;
+static uint32_t mot2_last_consumed = 0;
+
+#if BSP_TIMER_DEBUG
+static void dbg_u32(const char *label, uint32_t v)
+{
+    bsp_uart_send_string(label);
+    char buf[12];
+    int i = 0;
+    if (v == 0) { buf[i++] = '0'; }
+    else {
+        char tmp[12];
+        int j = 0;
+        while (v > 0) { tmp[j++] = '0' + (v % 10); v /= 10; }
+        while (j > 0) { buf[i++] = tmp[--j]; }
+    }
+    buf[i] = 0;
+    bsp_uart_send_string(buf);
+}
+#endif
 
 /* ============================================================================
  * Timer Initialization
@@ -33,48 +63,33 @@ void bsp_timer_init(void)
     TIM_MasterConfigTypeDef sMasterConfig = {0};
     TIM_OC_InitTypeDef sConfigOC = {0};
 
-    /* TIM2 for Motor 1 */
+    // TIM2 for motor 1
     htim2.Instance = TIM2;
-    htim2.Init.Prescaler = 79;                    /* 80MHz / 80 = 1MHz timer clock */
+    htim2.Init.Prescaler = 79;
     htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim2.Init.Period = 1000 - 1;                /* Default 1kHz (1ms pulses) */
+    htim2.Init.Period = 1000 - 1;
     htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
     htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
 
-    if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_Base_Init(&htim2) != HAL_OK) Error_Handler();
 
     sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-    if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK) Error_Handler();
 
-    if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_OC_Init(&htim2) != HAL_OK) Error_Handler();
 
     sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
     sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-    if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK) Error_Handler();
 
     sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-    sConfigOC.Pulse = 500;                       /* 50% duty cycle */
+    sConfigOC.Pulse = 500;
     sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
     sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
 
-    if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) Error_Handler();
 
-    /* TIM3 for Motor 2 (same configuration) */
+    // TIM3 for motor 2
     htim3.Instance = TIM3;
     htim3.Init.Prescaler = 79;
     htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -82,33 +97,18 @@ void bsp_timer_init(void)
     htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
     htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
 
-    if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_Base_Init(&htim3) != HAL_OK) Error_Handler();
 
     sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-    if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK) Error_Handler();
 
-    if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_OC_Init(&htim3) != HAL_OK) Error_Handler();
 
     sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
     sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-    if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK) Error_Handler();
 
-    if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-    {
-        Error_Handler();
-    }
+    if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) Error_Handler();
 }
 
 /* ============================================================================
@@ -117,24 +117,28 @@ void bsp_timer_init(void)
 
 void bsp_timer_mot1_set_frequency(uint32_t freq_hz)
 {
-    /* Prevent division by zero and cap to reasonable limits */
-    if (freq_hz == 0)
-        freq_hz = 1;
-    if (freq_hz > MOTOR_MAX_SPEED)
-        freq_hz = MOTOR_MAX_SPEED;
+    if (freq_hz == 0) freq_hz = 1;
+    if (freq_hz > MOTOR_MAX_SPEED) freq_hz = MOTOR_MAX_SPEED;
 
-    /* Period in microseconds = 1,000,000 / freq_hz / 2 (for toggle mode) */
     uint32_t period = (1000000 / freq_hz / 2) - 1;
-
     htim2.Instance->ARR = period;
-    htim2.Instance->PSC = 79;  /* 1MHz clock */
+    htim2.Instance->PSC = 79;
 }
 
-void bsp_timer_mot1_start(uint32_t num_steps)
+void bsp_timer_mot1_start(uint32_t num_steps, int8_t direction)
 {
     mot1_target_steps = num_steps;
     mot1_step_count = 0;
+    mot1_last_consumed = 0;
+    mot1_step_dir = direction;
     HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_1);
+
+#if BSP_TIMER_DEBUG
+    bsp_uart_send_string("DBG tim: mot1 start dir=");
+    bsp_uart_send_string(direction > 0 ? "+ " : "- ");
+    dbg_u32("target=", num_steps);
+    bsp_uart_send_string("\r\n");
+#endif
 }
 
 void bsp_timer_mot1_stop(void)
@@ -142,6 +146,7 @@ void bsp_timer_mot1_stop(void)
     HAL_TIM_OC_Stop_IT(&htim2, TIM_CHANNEL_1);
     mot1_step_count = 0;
     mot1_target_steps = 0;
+    mot1_last_consumed = 0;
 }
 
 uint32_t bsp_timer_mot1_steps_done(void)
@@ -154,28 +159,47 @@ uint8_t bsp_timer_mot1_is_moving(void)
     return (mot1_step_count < mot1_target_steps);
 }
 
+// returns signed step delta since last call. used for position tracking.
+int32_t bsp_timer_mot1_consume_delta(void)
+{
+    uint32_t now = mot1_step_count;
+    if (now < mot1_last_consumed) {
+        // counter reset (new move started)
+        mot1_last_consumed = 0;
+    }
+    int32_t delta = (int32_t)(now - mot1_last_consumed) * (int32_t)mot1_step_dir;
+    mot1_last_consumed = now;
+    return delta;
+}
+
 /* ============================================================================
  * Motor 2 Step Control
  * ============================================================================ */
 
 void bsp_timer_mot2_set_frequency(uint32_t freq_hz)
 {
-    if (freq_hz == 0)
-        freq_hz = 1;
-    if (freq_hz > MOTOR_MAX_SPEED)
-        freq_hz = MOTOR_MAX_SPEED;
+    if (freq_hz == 0) freq_hz = 1;
+    if (freq_hz > MOTOR_MAX_SPEED) freq_hz = MOTOR_MAX_SPEED;
 
     uint32_t period = (1000000 / freq_hz / 2) - 1;
-
     htim3.Instance->ARR = period;
     htim3.Instance->PSC = 79;
 }
 
-void bsp_timer_mot2_start(uint32_t num_steps)
+void bsp_timer_mot2_start(uint32_t num_steps, int8_t direction)
 {
     mot2_target_steps = num_steps;
     mot2_step_count = 0;
+    mot2_last_consumed = 0;
+    mot2_step_dir = direction;
     HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
+
+#if BSP_TIMER_DEBUG
+    bsp_uart_send_string("DBG tim: mot2 start dir=");
+    bsp_uart_send_string(direction > 0 ? "+ " : "- ");
+    dbg_u32("target=", num_steps);
+    bsp_uart_send_string("\r\n");
+#endif
 }
 
 void bsp_timer_mot2_stop(void)
@@ -183,6 +207,7 @@ void bsp_timer_mot2_stop(void)
     HAL_TIM_OC_Stop_IT(&htim3, TIM_CHANNEL_1);
     mot2_step_count = 0;
     mot2_target_steps = 0;
+    mot2_last_consumed = 0;
 }
 
 uint32_t bsp_timer_mot2_steps_done(void)
@@ -193,6 +218,17 @@ uint32_t bsp_timer_mot2_steps_done(void)
 uint8_t bsp_timer_mot2_is_moving(void)
 {
     return (mot2_step_count < mot2_target_steps);
+}
+
+int32_t bsp_timer_mot2_consume_delta(void)
+{
+    uint32_t now = mot2_step_count;
+    if (now < mot2_last_consumed) {
+        mot2_last_consumed = 0;
+    }
+    int32_t delta = (int32_t)(now - mot2_last_consumed) * (int32_t)mot2_step_dir;
+    mot2_last_consumed = now;
+    return delta;
 }
 
 /* ============================================================================
@@ -227,4 +263,3 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
         }
     }
 }
-

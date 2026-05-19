@@ -137,6 +137,7 @@ void app_state_update(void)
             {
                 mot_ctrl_stop_all();
                 drv_cmd_send_status("Operation cancelled");
+                bsp_uart_send_string("Commands: j:jog (WASD), c:calibrate (WASD, m:mark), p:capture/characterize, e:decode IQ, x:cancel\r\n");
                 sys_state = SYS_IDLE;
                 app_state = APP_NONE;
             }
