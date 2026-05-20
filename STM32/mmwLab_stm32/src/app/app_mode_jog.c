@@ -140,6 +140,7 @@ static void jog_limit_update(void)
         #endif
     }
 
+
     if (current_dir == JOG_DIR_AX2_FWD && mot_axis2_limit_triggered()) {
         jog_stop();
         mot_axis2_set_homed();
@@ -174,7 +175,7 @@ void app_mode_jog_update(void)
         default: break;
     }
 
-    jog_limit_update();
+    //jog_limit_update();
 
 #if JOG_DEBUG
     if (current_dir != JOG_DIR_NONE && (now - last_status_tick) > JOG_STATUS_MS) {
