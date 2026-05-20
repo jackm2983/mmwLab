@@ -14,7 +14,7 @@
 #include "bsp_adc.h"
 #include "bsp_uart.h"
 
-#define CAP_DEBUG               1
+#define CAP_DEBUG               0
 
 #define CAP_ROTATION_SPEED      4000
 #define CAP_AXIS1_SUBDIVISIONS  72

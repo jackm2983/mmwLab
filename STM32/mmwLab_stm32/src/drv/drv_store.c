@@ -9,7 +9,7 @@
 #include "bsp_flash.h"
 #include "bsp_uart.h"
 
-#define DRV_STORE_DEBUG 1
+#define DRV_STORE_DEBUG 0
 
 static uint8_t drv_store_load(void);
 

@@ -82,19 +82,27 @@ static void jog_start(JogDir_t dir)
     switch (dir) {
         case JOG_DIR_AX1_FWD:
             rc = mot_ctrl_jog_axis1(1, JOG_SPEED);
-            drv_cmd_send_status("axis 1 fwd");
+            #if JOG_DEBUG 
+                JOG_DEBUG drv_cmd_send_status("axis 1 fwd");  
+            #endif
             break;
         case JOG_DIR_AX1_REV:
             rc = mot_ctrl_jog_axis1(0, JOG_SPEED);
-            drv_cmd_send_status("axis 1 rev");
+            #if JOG_DEBUG 
+                drv_cmd_send_status("axis 1 rev");
+            #endif
             break;
         case JOG_DIR_AX2_FWD:
             rc = mot_ctrl_jog_axis2(1, JOG_SPEED);
-            drv_cmd_send_status("axis 2 fwd");
+            #if JOG_DEBUG 
+                drv_cmd_send_status("axis 2 fwd");
+            #endif
             break;
         case JOG_DIR_AX2_REV:
             rc = mot_ctrl_jog_axis2(0, JOG_SPEED);
-            drv_cmd_send_status("axis 2 rev");
+            #if JOG_DEBUG 
+                drv_cmd_send_status("axis 2 rev");
+            #endif
             break;
         default:
             break;
@@ -115,11 +123,11 @@ static void jog_stop(void)
     bsp_uart_send_string("DBG jog: stop after ");
     dbg_u32("", elapsed);
     bsp_uart_send_string(" ms\r\n");
+    drv_cmd_send_status("jog stopped");
 #endif
 
     mot_ctrl_stop_all();
     current_dir = JOG_DIR_NONE;
-    drv_cmd_send_status("jog stopped");
 }
 
 static void jog_limit_update(void)
@@ -127,13 +135,17 @@ static void jog_limit_update(void)
     if (current_dir == JOG_DIR_AX1_FWD && mot_axis1_limit_triggered()) {
         jog_stop();
         mot_axis1_set_homed();
-        drv_cmd_send_status("axis 1 limit");
+        #if JOG_DEBUG
+            drv_cmd_send_status("axis 1 limit");
+        #endif
     }
 
     if (current_dir == JOG_DIR_AX2_FWD && mot_axis2_limit_triggered()) {
         jog_stop();
         mot_axis2_set_homed();
-        drv_cmd_send_status("axis 2 limit");
+        #if JOG_DEBUG
+            drv_cmd_send_status("axis 2 limit");
+        #endif
     }
 }
 

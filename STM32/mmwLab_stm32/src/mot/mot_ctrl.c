@@ -13,7 +13,7 @@
 #include "mot_axis.h"
 #include "mot_stepper.h"
 
-#define MOT_CTRL_DEBUG  1
+#define MOT_CTRL_DEBUG  0
 
 #if MOT_CTRL_DEBUG
 static void dbg_u32(const char *label, uint32_t v)

@@ -13,7 +13,7 @@
 #include "stm32l4xx_hal.h"
 
 // 0 = silent, 1 = move start/stop, 2 = every ISR pulse (will flood UART)
-#define BSP_TIMER_DEBUG 1
+#define BSP_TIMER_DEBUG 0
 
 /* ============================================================================
  * Timer Handles for Stepper Control
