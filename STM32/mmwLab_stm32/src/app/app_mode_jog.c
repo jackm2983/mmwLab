@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file           : app_mode_jog.c
-  * @brief          : Jog mode (manual motor control via WASD keys). 
+  * @brief          : Jog mode (manual motor control via WASD keys)
   ******************************************************************************
 */
 
@@ -13,13 +13,10 @@
 #include "mot_axis.h"
 #include "bsp_timer.h"
 
-// debug levels: 0 = silent, 1 = state changes only, 2 = verbose every loop
 #define JOG_DEBUG       0
 
-#define JOG_SPEED       4000    // hz
-#define JOG_TIMEOUT_MS  30     // stop if no keypress in this window
-
-// how often to print periodic motor status while jogging (ms)
+#define JOG_SPEED       4000
+#define JOG_TIMEOUT_MS  30
 #define JOG_STATUS_MS   500
 
 typedef enum {
@@ -76,23 +73,14 @@ static void jog_start(JogDir_t dir)
 #endif
 
     if (dir == current_dir) {
-        // already going this way, deadline already refreshed in caller
-#if JOG_DEBUG
-        bsp_uart_send_string("DBG jog: same dir, continuing\r\n");
-#endif
         return;
     }
 
-    // direction changed (or starting from idle), stop first
     mot_ctrl_stop_all();
     uint8_t rc = 0xFF;
 
     switch (dir) {
         case JOG_DIR_AX1_FWD:
-            if (mot_axis1_limit_triggered()) {
-                drv_cmd_send_status("axis 1 forward limit");
-                return;
-            }
             rc = mot_ctrl_jog_axis1(1, JOG_SPEED);
             drv_cmd_send_status("axis 1 fwd");
             break;
@@ -101,10 +89,6 @@ static void jog_start(JogDir_t dir)
             drv_cmd_send_status("axis 1 rev");
             break;
         case JOG_DIR_AX2_FWD:
-            if (mot_axis2_limit_triggered()) {
-                drv_cmd_send_status("axis 2 forward limit");
-                return;
-            }
             rc = mot_ctrl_jog_axis2(1, JOG_SPEED);
             drv_cmd_send_status("axis 2 fwd");
             break;
@@ -116,12 +100,7 @@ static void jog_start(JogDir_t dir)
             break;
     }
 
-#if JOG_DEBUG
-    bsp_uart_send_string("DBG jog: mot_ctrl rc=");
-    dbg_u32("", rc);
-    bsp_uart_send_string("\r\n");
-#endif
-
+    (void)rc;
     current_dir = dir;
     jog_start_tick = HAL_GetTick();
     last_status_tick = jog_start_tick;
@@ -143,13 +122,27 @@ static void jog_stop(void)
     drv_cmd_send_status("jog stopped");
 }
 
+static void jog_limit_update(void)
+{
+    if (current_dir == JOG_DIR_AX1_FWD && mot_axis1_limit_triggered()) {
+        jog_stop();
+        mot_axis1_set_homed();
+        drv_cmd_send_status("axis 1 limit");
+    }
+
+    if (current_dir == JOG_DIR_AX2_FWD && mot_axis2_limit_triggered()) {
+        jog_stop();
+        mot_axis2_set_homed();
+        drv_cmd_send_status("axis 2 limit");
+    }
+}
+
 void app_mode_jog_update(void)
 {
     Command_t cmd = drv_cmd_get_last_command();
     uint32_t now = HAL_GetTick();
 
 #if JOG_DEBUG >= 2
-    // verbose: print every loop. only enable for deep debugging.
     if (cmd != CMD_NONE || current_dir != JOG_DIR_NONE) {
         bsp_uart_send_string("DBG jog loop: cmd=");
         dbg_u32("", (uint32_t)cmd);
@@ -169,7 +162,8 @@ void app_mode_jog_update(void)
         default: break;
     }
 
-    // periodic status while jogging
+    jog_limit_update();
+
 #if JOG_DEBUG
     if (current_dir != JOG_DIR_NONE && (now - last_status_tick) > JOG_STATUS_MS) {
         last_status_tick = now;
@@ -193,7 +187,6 @@ void app_mode_jog_update(void)
     }
 #endif
 
-    // stop if no key seen recently
     if (current_dir != JOG_DIR_NONE && (now - last_key_tick) > JOG_TIMEOUT_MS) {
         jog_stop();
     }

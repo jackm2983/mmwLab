@@ -13,10 +13,6 @@
 #define AXIS_DEFAULT_MAX    1000000
 #define AXIS_DEFAULT_MIN    (-1000000)
 
-/* ============================================================================
- * Axis State Structures
- * ============================================================================ */
-
 typedef struct {
     int32_t position;
     int32_t home_position;
@@ -29,10 +25,6 @@ typedef struct {
 
 static AxisState_t axis1_state = {0};
 static AxisState_t axis2_state = {0};
-
-/* ============================================================================
- * Axis Initialization
- * ============================================================================ */
 
 void mot_axis_init(void)
 {
@@ -52,10 +44,6 @@ void mot_axis_init(void)
     axis2_state.max_position = AXIS_DEFAULT_MAX;
     axis2_state.min_position = AXIS_DEFAULT_MIN;
 }
-
-/* ============================================================================
- * Axis 1 Functions
- * ============================================================================ */
 
 int32_t mot_axis1_get_position(void) { return axis1_state.position; }
 void mot_axis1_set_position(int32_t pos) { axis1_state.position = pos; }
@@ -79,16 +67,18 @@ uint8_t mot_axis1_is_homed(void) { return axis1_state.is_homed; }
 void mot_axis1_set_moving(uint8_t moving) { axis1_state.is_moving = moving; }
 uint8_t mot_axis1_is_moving(void) { return axis1_state.is_moving; }
 void mot_axis1_update_limits(void) { axis1_state.limit_triggered = bsp_gpio_limit1_read(); }
-uint8_t mot_axis1_limit_triggered(void) { return axis1_state.limit_triggered; }
+
+uint8_t mot_axis1_limit_triggered(void)
+{
+    axis1_state.limit_triggered = bsp_gpio_limit1_read();
+    return axis1_state.limit_triggered;
+}
+
 void mot_axis1_set_bounds(int32_t min, int32_t max)
 {
     axis1_state.min_position = min;
     axis1_state.max_position = max;
 }
-
-/* ============================================================================
- * Axis 2 Functions
- * ============================================================================ */
 
 int32_t mot_axis2_get_position(void) { return axis2_state.position; }
 void mot_axis2_set_position(int32_t pos) { axis2_state.position = pos; }
@@ -112,7 +102,13 @@ uint8_t mot_axis2_is_homed(void) { return axis2_state.is_homed; }
 void mot_axis2_set_moving(uint8_t moving) { axis2_state.is_moving = moving; }
 uint8_t mot_axis2_is_moving(void) { return axis2_state.is_moving; }
 void mot_axis2_update_limits(void) { axis2_state.limit_triggered = bsp_gpio_limit2_read(); }
-uint8_t mot_axis2_limit_triggered(void) { return axis2_state.limit_triggered; }
+
+uint8_t mot_axis2_limit_triggered(void)
+{
+    axis2_state.limit_triggered = bsp_gpio_limit2_read();
+    return axis2_state.limit_triggered;
+}
+
 void mot_axis2_set_bounds(int32_t min, int32_t max)
 {
     axis2_state.min_position = min;

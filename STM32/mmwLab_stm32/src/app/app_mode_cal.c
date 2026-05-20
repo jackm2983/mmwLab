@@ -50,20 +50,12 @@ static void cal_jog_start(CalJogDir_t dir)
 
     switch (dir) {
         case CJOG_DIR_AX1_FWD:
-            if (mot_axis1_limit_triggered()) {
-                drv_cmd_send_status("CAL: axis 1 fwd limit");
-                return;
-            }
             mot_ctrl_jog_axis1(1, CAL_JOG_SPEED);
             break;
         case CJOG_DIR_AX1_REV:
             mot_ctrl_jog_axis1(0, CAL_JOG_SPEED);
             break;
         case CJOG_DIR_AX2_FWD:
-            if (mot_axis2_limit_triggered()) {
-                drv_cmd_send_status("CAL: axis 2 fwd limit");
-                return;
-            }
             mot_ctrl_jog_axis2(1, CAL_JOG_SPEED);
             break;
         case CJOG_DIR_AX2_REV:
@@ -72,6 +64,7 @@ static void cal_jog_start(CalJogDir_t dir)
         default:
             break;
     }
+
     cal_jog_dir = dir;
 }
 
@@ -80,6 +73,21 @@ static void cal_jog_stop(void)
     if (cal_jog_dir == CJOG_DIR_NONE) return;
     mot_ctrl_stop_all();
     cal_jog_dir = CJOG_DIR_NONE;
+}
+
+static void cal_limit_update(void)
+{
+    if (cal_jog_dir == CJOG_DIR_AX1_FWD && mot_axis1_limit_triggered()) {
+        cal_jog_stop();
+        mot_axis1_set_homed();
+        drv_cmd_send_status("CAL: axis 1 limit");
+    }
+
+    if (cal_jog_dir == CJOG_DIR_AX2_FWD && mot_axis2_limit_triggered()) {
+        cal_jog_stop();
+        mot_axis2_set_homed();
+        drv_cmd_send_status("CAL: axis 2 limit");
+    }
 }
 
 void app_mode_cal_update(void)
@@ -92,7 +100,6 @@ void app_mode_cal_update(void)
         cal_announced = 1;
     }
 
-    // jog handling, same as jog mode
     switch (cmd) {
         case CMD_JOG_UP:    cal_last_key_tick = now; cal_jog_start(CJOG_DIR_AX2_FWD); break;
         case CMD_JOG_DOWN:  cal_last_key_tick = now; cal_jog_start(CJOG_DIR_AX2_REV); break;
@@ -101,11 +108,12 @@ void app_mode_cal_update(void)
         default: break;
     }
 
+    cal_limit_update();
+
     if (cal_jog_dir != CJOG_DIR_NONE && (now - cal_last_key_tick) > CAL_JOG_TIMEOUT_MS) {
         cal_jog_stop();
     }
 
-    // mark point handling
     switch (cal_state) {
         case CAL_WAIT_START:
             if (cmd == CMD_MARK_POINT) {
@@ -156,7 +164,6 @@ void app_mode_cal_update(void)
             break;
 
         case CAL_COMPLETE:
-            // sit here until cancel returns us to idle
             break;
 
         default:
