@@ -41,8 +41,14 @@ static void send_int(int32_t v)
 
 static void dec_emit_sample(uint16_t i_val, uint16_t q_val)
 {
-    bsp_uart_send_string("dec,");
-    send_int(dec_sample_count);
+    bsp_uart_send_string("cap,");
+    send_int(0);
+    bsp_uart_send_char(',');
+    send_int(0);
+    bsp_uart_send_char(',');
+    send_int(0);
+    bsp_uart_send_char(',');
+    send_int(0);
     bsp_uart_send_char(',');
     send_int(i_val);
     bsp_uart_send_char(',');
