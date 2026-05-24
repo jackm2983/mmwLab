@@ -1,0 +1,1 @@
+% ask LJ what he did to calculate the antenna size?
