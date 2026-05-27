@@ -1,5 +1,6 @@
 import csv
 import math
+import os
 import queue
 import threading
 import time
@@ -14,6 +15,7 @@ BAUD = 9600
 
 RAW_CSV_PATH = "capture_log_raw.csv"
 NORMALIZED_CSV_PATH = "capture_log_normalized.csv"
+PNG_DIR = "polar_plots"
 
 AX1_STEPS_PER_REV = 72
 
@@ -91,6 +93,53 @@ def theta_from_ax1_idx(ax1_idx):
     return math.radians((ax1_idx * 360.0) / AX1_STEPS_PER_REV)
 
 
+def save_sweep_png(rows, sweep_id, ax2_idx, path_dir=PNG_DIR):
+    sweep_rows = [
+        r for r in rows
+        if r["sweep_id"] == sweep_id
+    ]
+
+    if not sweep_rows:
+        return
+
+    sweep_max_power = max(r["power"] for r in sweep_rows)
+
+    theta = [
+        theta_from_ax1_idx(r["ax1_idx"])
+        for r in sweep_rows
+    ]
+
+    if sweep_max_power > 0:
+        radius = [
+            r["power"] / sweep_max_power
+            for r in sweep_rows
+        ]
+    else:
+        radius = [0.0 for _ in sweep_rows]
+
+    os.makedirs(path_dir, exist_ok=True)
+
+    png_path = os.path.join(
+        path_dir,
+        f"polar_sweep_{sweep_id:03d}_ax2_{ax2_idx}.png",
+    )
+
+    save_fig = plt.figure()
+    save_ax = save_fig.add_subplot(111, projection="polar")
+
+    save_ax.plot(theta, radius, marker="o")
+    save_ax.set_title(
+        f"normalized antenna transmit power, sweep {sweep_id}, axis 2 index {ax2_idx}"
+    )
+    save_ax.set_ylim(0, 1.05)
+    save_ax.grid(True)
+
+    save_fig.savefig(png_path, dpi=300, bbox_inches="tight")
+    plt.close(save_fig)
+
+    print(f"polar png written to {png_path}")
+
+
 def write_normalized_csv(rows, path):
     if not rows:
         return
@@ -163,6 +212,7 @@ def main():
     last_ax2_idx = None
     current_sweep_id = None
     current_ax2_idx = None
+    saved_sweep_ids = set()
 
     raw_fieldnames = [
         "timestamp",
@@ -203,6 +253,13 @@ def main():
                     continue
 
                 if row["ax2_idx"] != last_ax2_idx:
+                    if (
+                        current_sweep_id is not None
+                        and current_sweep_id not in saved_sweep_ids
+                    ):
+                        save_sweep_png(rows, current_sweep_id, current_ax2_idx)
+                        saved_sweep_ids.add(current_sweep_id)
+
                     sweep_id += 1
                     last_ax2_idx = row["ax2_idx"]
                     print(f"new sweep {sweep_id}, axis 2 index {row['ax2_idx']}")
@@ -264,10 +321,18 @@ def main():
 
         raw_csv_file.close()
 
+        if (
+            current_sweep_id is not None
+            and current_sweep_id not in saved_sweep_ids
+        ):
+            save_sweep_png(rows, current_sweep_id, current_ax2_idx)
+            saved_sweep_ids.add(current_sweep_id)
+
         write_normalized_csv(rows, NORMALIZED_CSV_PATH)
 
         print(f"raw csv written to {RAW_CSV_PATH}")
         print(f"normalized csv written to {NORMALIZED_CSV_PATH}")
+        print(f"polar png files written to {PNG_DIR}")
 
         plt.ioff()
         plt.show()
