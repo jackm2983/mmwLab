@@ -7,7 +7,7 @@ import numpy as np
 
 
 INPUT_CSV = "capture_log_normalized.csv"
-OUTPUT_PNG = "polar_plots/antenna_waterfall_3d.png"
+OUTPUT_PNG = "antenna_waterfall_3d.png"
 
 AX1_STEPS_PER_REV = 72
 AX2_STEP_DEG = 5.0
@@ -68,7 +68,10 @@ def main():
     left, right = cross("left"), cross("right")
     hpbw = right - left if (left and right) else None
 
-    os.makedirs(os.path.dirname(OUTPUT_PNG), exist_ok=True)
+    output_dir = os.path.dirname(OUTPUT_PNG)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection="3d")
 

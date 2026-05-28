@@ -9,19 +9,18 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import serial
 
-# when this enters capture mode, it should delete all the pngs in the polar_plots file and the capture_log_raw.csv adn capture_log_normalized.csv files
-# before making new ones.
-
-
 
 PORT = "COM3"
 BAUD = 9600
 
 RAW_CSV_PATH = "capture_log_raw.csv"
 NORMALIZED_CSV_PATH = "capture_log_normalized.csv"
-PNG_DIR = "polar_plots"
+
+# scripts are inside polar_plots, so save pngs in the current folder
+PNG_DIR = "."
 
 AX1_STEPS_PER_REV = 72
+
 
 def cleanup_previous_capture():
     for path in (RAW_CSV_PATH, NORMALIZED_CSV_PATH):
@@ -29,19 +28,18 @@ def cleanup_previous_capture():
             os.remove(path)
             print(f"deleted {path}")
 
-    if os.path.isdir(PNG_DIR):
-        for filename in os.listdir(PNG_DIR):
-            if filename.lower().endswith(".png"):
-                png_path = os.path.join(PNG_DIR, filename)
-                os.remove(png_path)
-                print(f"deleted {png_path}")
-    else:
-        os.makedirs(PNG_DIR, exist_ok=True)
+    for filename in os.listdir(PNG_DIR):
+        if filename.lower().endswith(".png"):
+            png_path = os.path.join(PNG_DIR, filename)
+            os.remove(png_path)
+            print(f"deleted {png_path}")
+
 
 def serial_reader(ser, line_queue, stop_event):
     while not stop_event.is_set():
         try:
             raw = ser.readline()
+
             if not raw:
                 continue
 
@@ -176,7 +174,11 @@ def write_normalized_csv(rows, path):
 
         if max_power > 0:
             out["power_norm_sweep"] = out["power"] / max_power
-            out["power_db_norm"] = 20.0 * math.log10(out["power_norm_sweep"])
+
+            if out["power_norm_sweep"] > 0:
+                out["power_db_norm"] = 20.0 * math.log10(out["power_norm_sweep"])
+            else:
+                out["power_db_norm"] = None
         else:
             out["power_norm_sweep"] = 0.0
             out["power_db_norm"] = None
@@ -205,7 +207,7 @@ def write_normalized_csv(rows, path):
 
 def main():
     cleanup_previous_capture()
-    
+
     line_queue = queue.Queue()
     stop_event = threading.Event()
 
@@ -352,7 +354,7 @@ def main():
 
         print(f"raw csv written to {RAW_CSV_PATH}")
         print(f"normalized csv written to {NORMALIZED_CSV_PATH}")
-        print(f"polar png files written to {PNG_DIR}")
+        print("polar png files written to current folder")
 
         plt.ioff()
         plt.show()

@@ -7,7 +7,7 @@ import numpy as np
 
 
 INPUT_CSV = "capture_log_normalized.csv"
-OUTPUT_PNG = "polar_plots/antenna_polar_2d.png"
+OUTPUT_PNG = "antenna_polar_2d.png"
 
 AX1_STEPS_PER_REV = 72
 HPBW_THRESHOLD = 0.5  # -3 db in linear power
@@ -86,7 +86,10 @@ def main():
 
     h = compute_hpbw(rows, COPOL_AX2, floor)
 
-    os.makedirs(os.path.dirname(OUTPUT_PNG), exist_ok=True)
+    output_dir = os.path.dirname(OUTPUT_PNG)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(9, 9), subplot_kw={"projection": "polar"})
 
     # plot in db
