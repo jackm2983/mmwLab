@@ -80,9 +80,6 @@ def main():
 
     fig.colorbar(surf, ax=ax, shrink=0.6, label="normalized power (dB)")
 
-    # trace the co-pol ridge in red so the main lobe stands out
-    ax.plot(ax1_deg, np.zeros_like(ax1_deg), grid_db[i_of[0], :],
-            color="red", lw=2.5, label="co-pol cut (ax2=0)")
 
     ax.set_xlabel("ax1 angle (deg)")
     ax.set_ylabel("polarization ax2 (deg)")
