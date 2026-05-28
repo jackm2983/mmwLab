@@ -9,6 +9,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import serial
 
+# when this enters capture mode, it should delete all the pngs in the polar_plots file and the capture_log_raw.csv adn capture_log_normalized.csv files
+# before making new ones.
+
+
 
 PORT = "COM3"
 BAUD = 9600
@@ -19,6 +23,20 @@ PNG_DIR = "polar_plots"
 
 AX1_STEPS_PER_REV = 72
 
+def cleanup_previous_capture():
+    for path in (RAW_CSV_PATH, NORMALIZED_CSV_PATH):
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"deleted {path}")
+
+    if os.path.isdir(PNG_DIR):
+        for filename in os.listdir(PNG_DIR):
+            if filename.lower().endswith(".png"):
+                png_path = os.path.join(PNG_DIR, filename)
+                os.remove(png_path)
+                print(f"deleted {png_path}")
+    else:
+        os.makedirs(PNG_DIR, exist_ok=True)
 
 def serial_reader(ser, line_queue, stop_event):
     while not stop_event.is_set():
@@ -186,6 +204,8 @@ def write_normalized_csv(rows, path):
 
 
 def main():
+    cleanup_previous_capture()
+    
     line_queue = queue.Queue()
     stop_event = threading.Event()
 
