@@ -10,6 +10,10 @@
 #include "cfg_pins.h"
 #include "stm32l4xx_hal.h"
 
+
+ #define ADC_PEAK_READ_MS    3
+
+
 /* ============================================================================
  * ADC Handle & Buffers
  * ============================================================================ */
@@ -55,7 +59,7 @@ void bsp_adc_init(void)
     /* Configure ADC channel for I signal (PA3 = ADC1_IN8) */
     sConfig.Channel = ADC_CHANNEL_8;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -68,7 +72,7 @@ void bsp_adc_init(void)
     /* Configure ADC channel for Q signal (PC0 = ADC1_IN1) */
     sConfig.Channel = ADC_CHANNEL_1;
     sConfig.Rank = ADC_REGULAR_RANK_2;
-    sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
 
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
@@ -85,6 +89,7 @@ void bsp_adc_init(void)
 /* ============================================================================
  * ADC Conversion Functions
  * ============================================================================ */
+
 
 void bsp_adc_start_continuous(void)
 {
@@ -127,6 +132,37 @@ void bsp_adc_read_single(uint16_t *i_value, uint16_t *q_value)
 
     HAL_ADC_Stop(&hadc1);
 }
+
+
+
+
+void bsp_adc_read_peak_1khz(uint16_t *i_peak, uint16_t *q_peak)
+{
+    uint16_t i_max = 0;
+    uint16_t q_max = 0;
+
+    uint32_t start = HAL_GetTick();
+
+    while ((HAL_GetTick() - start) < ADC_PEAK_READ_MS)
+    {
+        uint16_t i_value = 0;
+        uint16_t q_value = 0;
+
+        bsp_adc_read_single(&i_value, &q_value);
+
+        if (i_value > i_max) {
+            i_max = i_value;
+        }
+
+        if (q_value > q_max) {
+            q_max = q_value;
+        }
+    }
+
+    *i_peak = i_max;
+    *q_peak = q_max;
+}
+
 
 /* Store sample in buffers */
 static void bsp_adc_store_sample(void)

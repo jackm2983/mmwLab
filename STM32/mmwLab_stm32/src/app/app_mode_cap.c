@@ -185,9 +185,7 @@ void app_mode_cap_update(void)
         case CAP_MEASURE: {
             uint16_t i_val = 0;
             uint16_t q_val = 0;
-            bsp_adc_read_single(&i_val, &q_val);
-            // there should be a seperate function to read sine wave. it samples for 3 periods and picks the max amplitude value.
-            // the sine/square wave would be a max of 1Mhz. 
+            bsp_adc_read_peak_1khz(&i_val, &q_val);
 
             int32_t ax1_pos = mot_axis1_get_position();
             int32_t ax2_pos = mot_axis2_get_position();

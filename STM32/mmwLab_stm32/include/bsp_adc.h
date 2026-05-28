@@ -27,6 +27,7 @@ void bsp_adc_stop(void);
 
 /* Single conversion (blocking) */
 void bsp_adc_read_single(uint16_t *i_value, uint16_t *q_value);
+void bsp_adc_read_peak_1khz(uint16_t *i_peak, uint16_t *q_peak);
 
 /* Sampling state */
 uint8_t bsp_adc_sampling_complete(void);
