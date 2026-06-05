@@ -8,10 +8,11 @@
 #include "main.h"
 #include "cfg_sys.h"
 #include "cfg_pins.h"
+#include "bsp_filter.h"
 #include "stm32l4xx_hal.h"
 
 
- #define ADC_PEAK_READ_MS    3
+ #define ADC_PEAK_READ_MS    20
 
 
 /* ============================================================================
@@ -24,8 +25,14 @@ static ADC_HandleTypeDef hadc1;
 static uint32_t adc_dma_buffer[2];  /* [0] = I channel (PA3), [1] = Q channel (PC0) */
 static uint16_t adc_samples_i[SAMPLE_SIZE];
 static uint16_t adc_samples_q[SAMPLE_SIZE];
+static float adc_samples_i_filtered[SAMPLE_SIZE];  /* Filtered I channel */
+static float adc_samples_q_filtered[SAMPLE_SIZE];  /* Filtered Q channel */
 static volatile uint16_t adc_sample_count = 0;
 static volatile uint8_t adc_conversion_complete = 0;
+
+/* Filter states for 40 kHz bandpass filtering */
+static BandpassFilterState filter_i;
+static BandpassFilterState filter_q;
 
 /* ============================================================================
  * ADC Initialization
@@ -59,7 +66,7 @@ void bsp_adc_init(void)
     /* Configure ADC channel for I signal (PA3 = ADC1_IN8) */
     sConfig.Channel = ADC_CHANNEL_8;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;  /* Faster sampling for 40kHz signal */
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -72,7 +79,7 @@ void bsp_adc_init(void)
     /* Configure ADC channel for Q signal (PC0 = ADC1_IN1) */
     sConfig.Channel = ADC_CHANNEL_1;
     sConfig.Rank = ADC_REGULAR_RANK_2;
-    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;  /* Faster sampling for 40kHz signal */
 
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
@@ -84,6 +91,10 @@ void bsp_adc_init(void)
     {
         Error_Handler();
     }
+
+    /* Initialize 40 kHz bandpass filters */
+    bsp_filter_init_40khz(&filter_i);
+    bsp_filter_init_40khz(&filter_q);
 }
 
 /* ============================================================================
@@ -136,6 +147,7 @@ void bsp_adc_read_single(uint16_t *i_value, uint16_t *q_value)
 
 
 
+/* Read ADC peaks over a time window (optimized for 40kHz signals) */
 void bsp_adc_read_peak_1khz(uint16_t *i_peak, uint16_t *q_peak)
 {
     uint16_t i_max = 0;
@@ -198,6 +210,30 @@ void bsp_adc_get_samples(uint16_t **i_samples, uint16_t **q_samples, uint16_t *c
 {
     *i_samples = adc_samples_i;
     *q_samples = adc_samples_q;
+    *count = adc_sample_count;
+}
+
+/* Apply 40 kHz bandpass filter to captured samples */
+void bsp_adc_filter_samples(void)
+{
+    /* Convert raw 12-bit ADC values to float and apply bandpass filter */
+    for (uint16_t i = 0; i < adc_sample_count; i++)
+    {
+        /* Normalize ADC samples (12-bit: 0-4095) to 0-1 range */
+        float i_normalized = (float)adc_samples_i[i] / 4095.0f;
+        float q_normalized = (float)adc_samples_q[i] / 4095.0f;
+
+        /* Apply 40 kHz bandpass filter */
+        adc_samples_i_filtered[i] = bsp_filter_apply(&filter_i, i_normalized);
+        adc_samples_q_filtered[i] = bsp_filter_apply(&filter_q, q_normalized);
+    }
+}
+
+/* Get filtered sample data */
+void bsp_adc_get_filtered_samples(float **i_samples, float **q_samples, uint16_t *count)
+{
+    *i_samples = adc_samples_i_filtered;
+    *q_samples = adc_samples_q_filtered;
     *count = adc_sample_count;
 }
 

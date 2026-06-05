@@ -36,6 +36,10 @@ void bsp_adc_sampling_reset(void);
 /* Get sampled data */
 void bsp_adc_get_samples(uint16_t **i_samples, uint16_t **q_samples, uint16_t *count);
 
+/* 40 kHz Bandpass filtering */
+void bsp_adc_filter_samples(void);
+void bsp_adc_get_filtered_samples(float **i_samples, float **q_samples, uint16_t *count);
+
 #ifdef __cplusplus
 }
 #endif

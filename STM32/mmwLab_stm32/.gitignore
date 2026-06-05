@@ -1,7 +1,6 @@
 .pio/
 .vscode/
-capture_log_raw.csv
-capture_log_normalized.csv
+*.csv
 *.png
 
 

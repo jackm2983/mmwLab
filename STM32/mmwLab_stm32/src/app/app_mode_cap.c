@@ -13,6 +13,7 @@
 #include "mot_axis.h"
 #include "bsp_adc.h"
 #include "bsp_uart.h"
+#include <stdio.h>
 
 #define CAP_DEBUG               0
 
@@ -29,7 +30,10 @@ typedef enum {
     CAP_HOME_AX1,
     CAP_WAIT_AX1,
     CAP_SETTLE,
-    CAP_MEASURE,
+    CAP_SAMPLE_START,
+    CAP_SAMPLE_WAIT,
+    CAP_SAMPLE_FILTER,
+    CAP_SAMPLE_SEND,
     CAP_NEXT,
     CAP_DONE
 } CapState_t;
@@ -48,6 +52,12 @@ static int32_t cap_ax2_end = 0;
 static uint32_t cap_samples_done = 0;
 static uint32_t cap_samples_total = 0;
 
+/* Sampling state variables */
+static uint16_t cap_sample_count = 0;
+static float *cap_samples_i_filt = NULL;
+static float *cap_samples_q_filt = NULL;
+static uint16_t cap_sample_idx = 0;  /* Index for sending samples */
+
 static void send_int(int32_t v)
 {
     if (v < 0) { bsp_uart_send_char('-'); v = -v; }
@@ -62,6 +72,27 @@ static void send_int(int32_t v)
     }
     buf[i] = 0;
     bsp_uart_send_string(buf);
+}
+
+static void send_float(float v)
+{
+    /* Send float with 6 decimal places using integer arithmetic */
+    int32_t int_part = (int32_t)v;
+    int32_t frac_part = (int32_t)((v - int_part) * 1000000.0f);
+    
+    if (v < 0 && int_part == 0) {
+        bsp_uart_send_char('-');
+    }
+    
+    send_int(int_part);
+    bsp_uart_send_char('.');
+    
+    /* Send fractional part with leading zeros */
+    if (frac_part < 0) frac_part = -frac_part;
+    
+    char frac_buf[10];
+    snprintf(frac_buf, sizeof(frac_buf), "%06ld", (long)frac_part);
+    bsp_uart_send_string(frac_buf);
 }
 
 static int32_t interp_pos(int32_t start, int32_t end, int32_t idx, int32_t total)
@@ -84,6 +115,30 @@ static void cap_emit_sample(int32_t ax1_pos, int32_t ax2_pos, uint16_t i_val, ui
     send_int(i_val);
     bsp_uart_send_char(',');
     send_int(q_val);
+    bsp_uart_send_string("\r\n");
+}
+
+static void cap_emit_sample_header(int32_t ax1_pos, int32_t ax2_pos, uint16_t sample_count)
+{
+    bsp_uart_send_string("cap_step,");
+    send_int(cap_ax1_idx);
+    bsp_uart_send_char(',');
+    send_int(cap_ax2_idx);
+    bsp_uart_send_char(',');
+    send_int(ax1_pos);
+    bsp_uart_send_char(',');
+    send_int(ax2_pos);
+    bsp_uart_send_char(',');
+    send_int(sample_count);
+    bsp_uart_send_string("\r\n");
+}
+
+static void cap_emit_sample_data(float i_filt, float q_filt)
+{
+    bsp_uart_send_string("cap_sample,");
+    send_float(i_filt);
+    bsp_uart_send_char(',');
+    send_float(q_filt);
     bsp_uart_send_string("\r\n");
 }
 
@@ -178,27 +233,59 @@ void app_mode_cap_update(void)
 
         case CAP_SETTLE:
             if ((HAL_GetTick() - cap_settle_start) >= CAP_SETTLE_MS) {
-                cap_state = CAP_MEASURE;
+                cap_state = CAP_SAMPLE_START;
             }
             break;
 
-        case CAP_MEASURE: {
-            uint16_t i_val = 0;
-            uint16_t q_val = 0;
-            bsp_adc_read_peak_1khz(&i_val, &q_val);
+        case CAP_SAMPLE_START:
+            /* Initialize sampling */
+            bsp_adc_sampling_reset();
+            bsp_adc_start_continuous();
+            cap_state = CAP_SAMPLE_WAIT;
+            break;
 
-            int32_t ax1_pos = mot_axis1_get_position();
-            int32_t ax2_pos = mot_axis2_get_position();
-            cap_emit_sample(ax1_pos, ax2_pos, i_val, q_val);
-            cap_samples_done++;
+        case CAP_SAMPLE_WAIT:
+            /* Wait for sampling to complete */
+            if (bsp_adc_sampling_complete()) {
+                cap_state = CAP_SAMPLE_FILTER;
+            }
+            break;
+
+        case CAP_SAMPLE_FILTER:
+            /* Apply bandpass filter to captured samples */
+            bsp_adc_filter_samples();
+            cap_state = CAP_SAMPLE_SEND;
+            cap_sample_idx = 0;
+            break;
+
+        case CAP_SAMPLE_SEND: {
+            /* Get filtered samples */
+            bsp_adc_get_filtered_samples(&cap_samples_i_filt, &cap_samples_q_filt, &cap_sample_count);
+
+            /* Send header on first call to this state */
+            if (cap_sample_idx == 0) {
+                int32_t ax1_pos = mot_axis1_get_position();
+                int32_t ax2_pos = mot_axis2_get_position();
+                cap_emit_sample_header(ax1_pos, ax2_pos, cap_sample_count);
+            }
+
+            /* Send samples one at a time to avoid buffer overflow */
+            if (cap_sample_idx < cap_sample_count) {
+                cap_emit_sample_data(cap_samples_i_filt[cap_sample_idx], 
+                                     cap_samples_q_filt[cap_sample_idx]);
+                cap_sample_idx++;
+            } else {
+                /* All samples sent, move to next step */
+                cap_samples_done++;
 
 #if CAP_DEBUG
-            if ((cap_samples_done % 10) == 0) {
-                cap_emit_progress();
-            }
+                if ((cap_samples_done % 10) == 0) {
+                    cap_emit_progress();
+                }
 #endif
 
-            cap_state = CAP_NEXT;
+                cap_state = CAP_NEXT;
+            }
             break;
         }
 

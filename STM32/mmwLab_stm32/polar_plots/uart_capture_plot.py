@@ -75,7 +75,79 @@ def serial_writer(ser, stop_event):
         time.sleep(0.005)
 
 
-def parse_cap_line(line):
+def parse_cap_step_header(line):
+    """Parse cap_step header line with new raw sampling format"""
+    parts = line.split(",")
+
+    if len(parts) != 6 or parts[0] != "cap_step":
+        return None
+
+    try:
+        ax1_idx = int(parts[1])
+        ax2_idx = int(parts[2])
+        ax1_pos = int(parts[3])
+        ax2_pos = int(parts[4])
+        sample_count = int(parts[5])
+    except ValueError:
+        return None
+
+    return {
+        "ax1_idx": ax1_idx,
+        "ax2_idx": ax2_idx,
+        "ax1_pos": ax1_pos,
+        "ax2_pos": ax2_pos,
+        "sample_count": sample_count,
+    }
+
+
+def parse_cap_sample(line):
+    """Parse individual cap_sample line with filtered I/Q values"""
+    parts = line.split(",")
+
+    if len(parts) != 3 or parts[0] != "cap_sample":
+        return None
+
+    try:
+        i_filt = float(parts[1])
+        q_filt = float(parts[2])
+    except ValueError:
+        return None
+
+    # Compute magnitude (power) for this sample
+    magnitude = math.sqrt(i_filt * i_filt + q_filt * q_filt)
+
+    return {
+        "i": i_filt,
+        "q": q_filt,
+        "magnitude": magnitude,
+    }
+
+
+def compute_step_power(samples):
+    """
+    Compute power for a measurement step from a list of samples.
+    Uses the peak-to-peak amplitude of the signal over the measurement window.
+    """
+    if not samples:
+        return 0.0
+
+    # Find min and max magnitude across all samples
+    magnitudes = [s["magnitude"] for s in samples]
+    min_mag = min(magnitudes)
+    max_mag = max(magnitudes)
+
+    # Power is derived from peak-to-peak amplitude
+    # For a sinusoid with amplitude A, peak-to-peak is 2A, so A = (max-min)/2
+    # Power ~ A^2 ~ ((max-min)/2)^2
+    peak_to_peak = max_mag - min_mag
+
+    # Return RMS-like estimate: (peak_to_peak / 2)^2 / 2
+    # Or simpler: just use max magnitude as power estimate
+    return max_mag
+
+
+def parse_cap_line_old(line):
+    """Parse old single-value format (kept for compatibility if needed)"""
     parts = line.split(",")
 
     if len(parts) != 7 or parts[0] != "cap":
@@ -192,8 +264,6 @@ def write_normalized_csv(rows, path):
         "ax2_idx",
         "ax1_pos",
         "ax2_pos",
-        "i",
-        "q",
         "power",
         "power_norm_sweep",
         "power_db_norm",
@@ -243,9 +313,8 @@ def main():
         "ax2_idx",
         "ax1_pos",
         "ax2_pos",
-        "i",
-        "q",
         "power",
+        "sample_count",
     ]
 
     raw_csv_file = open(RAW_CSV_PATH, "w", newline="")
@@ -263,38 +332,109 @@ def main():
     ax.set_ylim(0, 1.05)
     ax.grid(True)
 
+    # State for buffering samples during streaming
+    current_step = None
+    buffered_samples = []
+
     try:
         while not stop_event.is_set():
             updated = False
 
             while not line_queue.empty():
                 line = line_queue.get()
-                row = parse_cap_line(line)
 
-                if row is None:
+                # Parse cap_step header
+                step_header = parse_cap_step_header(line)
+                if step_header is not None:
+                    # If we have buffered samples from previous step, process them
+                    if current_step is not None and buffered_samples:
+                        # Compute power from buffered samples
+                        power = compute_step_power(buffered_samples)
+
+                        row = {
+                            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+                            "ax1_idx": current_step["ax1_idx"],
+                            "ax2_idx": current_step["ax2_idx"],
+                            "ax1_pos": current_step["ax1_pos"],
+                            "ax2_pos": current_step["ax2_pos"],
+                            "power": power,
+                            "sample_count": len(buffered_samples),
+                        }
+
+                        # Check if this is a new sweep (new ax2_idx)
+                        if row["ax2_idx"] != last_ax2_idx:
+                            if (
+                                current_sweep_id is not None
+                                and current_sweep_id not in saved_sweep_ids
+                            ):
+                                save_sweep_png(rows, current_sweep_id, current_ax2_idx)
+                                saved_sweep_ids.add(current_sweep_id)
+
+                            sweep_id += 1
+                            last_ax2_idx = row["ax2_idx"]
+                            print(f"new sweep {sweep_id}, axis 2 index {row['ax2_idx']}")
+
+                        row["sweep_id"] = sweep_id
+
+                        rows.append(row)
+                        raw_writer.writerow(row)
+                        raw_csv_file.flush()
+
+                        current_sweep_id = sweep_id
+                        current_ax2_idx = row["ax2_idx"]
+                        updated = True
+
+                    # Start buffering for new step
+                    current_step = step_header
+                    buffered_samples = []
                     continue
 
-                if row["ax2_idx"] != last_ax2_idx:
-                    if (
-                        current_sweep_id is not None
-                        and current_sweep_id not in saved_sweep_ids
-                    ):
-                        save_sweep_png(rows, current_sweep_id, current_ax2_idx)
-                        saved_sweep_ids.add(current_sweep_id)
+                # Parse cap_sample line
+                sample = parse_cap_sample(line)
+                if sample is not None:
+                    buffered_samples.append(sample)
+                    continue
 
-                    sweep_id += 1
-                    last_ax2_idx = row["ax2_idx"]
-                    print(f"new sweep {sweep_id}, axis 2 index {row['ax2_idx']}")
+                # Handle end of capture
+                if line == "cap_end":
+                    # Process last buffered samples
+                    if current_step is not None and buffered_samples:
+                        power = compute_step_power(buffered_samples)
 
-                row["sweep_id"] = sweep_id
+                        row = {
+                            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+                            "ax1_idx": current_step["ax1_idx"],
+                            "ax2_idx": current_step["ax2_idx"],
+                            "ax1_pos": current_step["ax1_pos"],
+                            "ax2_pos": current_step["ax2_pos"],
+                            "power": power,
+                            "sample_count": len(buffered_samples),
+                        }
 
-                rows.append(row)
-                raw_writer.writerow(row)
-                raw_csv_file.flush()
+                        if row["ax2_idx"] != last_ax2_idx:
+                            if (
+                                current_sweep_id is not None
+                                and current_sweep_id not in saved_sweep_ids
+                            ):
+                                save_sweep_png(rows, current_sweep_id, current_ax2_idx)
+                                saved_sweep_ids.add(current_sweep_id)
 
-                current_sweep_id = sweep_id
-                current_ax2_idx = row["ax2_idx"]
-                updated = True
+                            sweep_id += 1
+                            last_ax2_idx = row["ax2_idx"]
+
+                        row["sweep_id"] = sweep_id
+
+                        rows.append(row)
+                        raw_writer.writerow(row)
+                        raw_csv_file.flush()
+
+                        current_sweep_id = sweep_id
+                        current_ax2_idx = row["ax2_idx"]
+                        updated = True
+
+                    print("Capture complete")
+                    stop_event.set()
+                    continue
 
             if updated and current_sweep_id is not None:
                 plot_rows = [
